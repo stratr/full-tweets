@@ -1,0 +1,11 @@
+{
+  "name": "fulltweets",
+  "version": "1.0.0",
+  "description": "Scrape full tweet texts from Twitter website.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Taneli Salonen",
+  "license": "ISC"
+}
