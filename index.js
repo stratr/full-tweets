@@ -8,9 +8,11 @@ const axios = require("axios")
 
 const fetchData = async (siteUrl) => {
     const result = await axios.get(siteUrl)
-    //console.log(result.data.indexOf('Mistä seuraavaksi'))
-    //console.log(result.data.slice(4000, 5000))
-    return cheerio.load(result.data)
+    return {
+        siteUrl: siteUrl,
+        html: cheerio.load(result.data)
+    }
+    //return cheerio.load(result.data)
 }
 
 const getTweetsToBeFetched = () => {
@@ -42,12 +44,10 @@ const getTweets = async () => {
     const tweetUrlsBq = await getTweetsToBeFetched()
     const tweetUrls = tweetUrlsBq[0]
 
-    console.log(tweetUrls)
-
     const htmlPromises = []
     tweetUrls.forEach(tweet => {
-        const $ = fetchData(tweet.tweet_url)
-        htmlPromises.push($)
+        const tweetHtml = fetchData(tweet.tweet_url)
+        htmlPromises.push(tweetHtml)
     })
 
     Promise.all(htmlPromises)
@@ -55,13 +55,34 @@ const getTweets = async () => {
             const fullTexts = []
 
             htmls.forEach(html => {
-                const $ = html;
+                const $ = html.html;
                 const documentTitle = $('title').text()
                 const fullText = sliceTitle(documentTitle)
 
-                // replace the … in the end
-                console.log(fullText)
+                fullTexts.push({
+                    siteUrl: html.siteUrl,
+                    fullText: fullText
+                })
             })
+
+            // filter texts to see if the actually are correct
+            const fullTextsFiltered = fullTexts.filter(el => {
+                const fullTextStart = el.fullText.slice(0,5);
+                const foundInOriginal = tweetUrls.find(tweet => {
+                    return tweet.text.slice(0,5) === fullTextStart
+                })
+
+                return foundInOriginal;
+            })
+
+            if (fullTextsFiltered.length < fullTexts.length) {
+                console.log('Some sort of alert should be triggered. Fetched full text doesnt match original')
+            }
+
+            // TODO: push full texts to bigquery
+
+            console.log('filtered')
+            console.log(fullTextsFiltered)
         })
         .catch(err => {
             console.log('Error in fetching the page.');
