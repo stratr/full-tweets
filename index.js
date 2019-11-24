@@ -1,21 +1,64 @@
+const { BigQuery } = require('@google-cloud/bigquery');
+const bigquery = new BigQuery();
+require('dotenv').config();
 const cheerio = require('cheerio')
 const axios = require("axios")
+
+// gcloud functions deploy fullTweets --env-vars-file .env.yaml --runtime nodejs10 --trigger-topic fetch_full_tweets --timeout 180s
 
 const fetchData = async (siteUrl) => {
     const result = await axios.get(siteUrl)
     //console.log(result.data.indexOf('Mistä seuraavaksi'))
     //console.log(result.data.slice(4000, 5000))
     return cheerio.load(result.data)
-};
-
-const getText = async () => {
-    const $ = await fetchData("https://twitter.com/i/web/status/1189845865671909376")
-    const documentTitle = $('title').text()
-
-    const start = documentTitle.indexOf('"')
-    const end = documentTitle.lastIndexOf('"')
-    
-    console.log(documentTitle.slice(start, end))
 }
 
-getText()
+const getTweetsToBeFetched = () => {
+    // insert options, raw: true means that the same rows format is used as in the API documentation
+    const options = {
+        maxResults: 1000,
+    };
+
+    const bqTable = process.env.TWEETS_TO_FETCH_VIEW;
+
+    const query = "SELECT * FROM " + bqTable;
+
+    return bigquery.query(query, options);
+}
+
+const sliceTitle = (documentTitle) => {
+    const start = documentTitle.indexOf('"')
+    const end = documentTitle.lastIndexOf('"')
+
+    return documentTitle.slice(start, end)
+}
+
+const getTweets = async () => {
+    const tweetUrlsBq = await getTweetsToBeFetched()
+    const tweetUrls = tweetUrlsBq[0]
+
+    console.log(tweetUrls)
+
+    const htmlPromises = []
+    tweetUrls.forEach(tweet => {
+        const $ = fetchData(tweet.tweet_url)
+        htmlPromises.push($)
+    })
+
+    Promise.all(htmlPromises)
+        .then(htmls => {
+            htmls.forEach(html => {
+                const $ = html;
+                const documentTitle = $('title').text()
+                const fullText = sliceTitle(documentTitle)
+                // replace the … in the end
+                console.log(fullText)
+            })
+        })
+        .catch(err => {
+            console.log('Error in fetching the page.');
+            console.log(err);
+        });
+}
+
+getTweets()
