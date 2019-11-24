@@ -4,6 +4,11 @@ require('dotenv').config();
 const cheerio = require('cheerio')
 const axios = require("axios")
 
+const dataset = bigquery.dataset(process.env.BQ_DATASET);
+const table = dataset.table(process.env.BQ_TABLE);
+console.log('Dataset: ' + process.env.BQ_DATASET);
+console.log('Table: ' + process.env.BQ_TABLE);
+
 // gcloud functions deploy fullTweets --env-vars-file .env.yaml --runtime nodejs10 --trigger-topic fetch_full_tweets --timeout 180s
 
 const fetchData = async (siteUrl) => {
@@ -16,7 +21,6 @@ const fetchData = async (siteUrl) => {
 }
 
 const getTweetsToBeFetched = () => {
-    // insert options, raw: true means that the same rows format is used as in the API documentation
     const options = {
         maxResults: 1000,
     };
@@ -40,9 +44,34 @@ const sliceTitle = (documentTitle) => {
     return slicedTitle
 }
 
+function insertRowsAsStream(rows) {
+    // insert options, raw: true means that the same rows format is used as in the API documentation
+    const options = {
+        raw: true,
+        allowDuplicates: false
+    };
+
+    return table.insert(rows, options);
+}
+
+function bigQueryMapper(tweets) {
+    var rows = tweets.map(tweet => {
+        return {
+            "insertId": tweet.siteUrl,
+            "json": {
+                siteUrl: tweet.siteUrl,
+                fullText: tweet.fullText,
+
+            }
+        };
+    });
+    return rows;
+}
+
 const getTweets = async () => {
     const tweetUrlsBq = await getTweetsToBeFetched()
     const tweetUrls = tweetUrlsBq[0]
+    console.log('Got ' + tweetUrls.length + ' URLs from BigQuery.')
 
     const htmlPromises = []
     tweetUrls.forEach(tweet => {
@@ -80,9 +109,10 @@ const getTweets = async () => {
             }
 
             // TODO: push full texts to bigquery
+            const bqRows = bigQueryMapper(fullTextsFiltered)
 
-            console.log('filtered')
-            console.log(fullTextsFiltered)
+            console.log('Inserting ' + bqRows.length + ' records in BigQuery.')
+            insertRowsAsStream(bqRows)
         })
         .catch(err => {
             console.log('Error in fetching the page.');
