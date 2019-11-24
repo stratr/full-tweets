@@ -27,10 +27,15 @@ const getTweetsToBeFetched = () => {
 }
 
 const sliceTitle = (documentTitle) => {
-    const start = documentTitle.indexOf('"')
+    const start = documentTitle.indexOf('"') + 1
     const end = documentTitle.lastIndexOf('"')
+    const slicedTitle = documentTitle.slice(start, end)
 
-    return documentTitle.slice(start, end)
+    if (/…\shttps?:\/\/t.+$/.test(slicedTitle)) {
+        return slicedTitle.replace(/…([^…]*)$/, "$1")
+    }
+
+    return slicedTitle
 }
 
 const getTweets = async () => {
@@ -47,10 +52,13 @@ const getTweets = async () => {
 
     Promise.all(htmlPromises)
         .then(htmls => {
+            const fullTexts = []
+
             htmls.forEach(html => {
                 const $ = html;
                 const documentTitle = $('title').text()
                 const fullText = sliceTitle(documentTitle)
+
                 // replace the … in the end
                 console.log(fullText)
             })
