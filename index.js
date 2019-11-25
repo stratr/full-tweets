@@ -10,6 +10,7 @@ console.log('Dataset: ' + process.env.BQ_DATASET);
 console.log('Table: ' + process.env.BQ_TABLE);
 
 // gcloud functions deploy fullTweets --env-vars-file .env.yaml --runtime nodejs10 --trigger-topic fetch_full_tweets --timeout 180s
+// node -e 'require("./index").fullTweets()'
 
 const fetchData = async (siteUrl) => {
     const result = await axios.get(siteUrl)
@@ -60,8 +61,7 @@ function bigQueryMapper(tweets) {
             "insertId": tweet.siteUrl,
             "json": {
                 siteUrl: tweet.siteUrl,
-                fullText: tweet.fullText,
-
+                fullText: tweet.fullText
             }
         };
     });
@@ -72,6 +72,7 @@ const getTweets = async () => {
     const tweetUrlsBq = await getTweetsToBeFetched()
     const tweetUrls = tweetUrlsBq[0]
     console.log('Got ' + tweetUrls.length + ' URLs from BigQuery.')
+    console.log(tweetUrls)
 
     const htmlPromises = []
     tweetUrls.forEach(tweet => {
@@ -87,6 +88,7 @@ const getTweets = async () => {
                 const $ = html.html;
                 const documentTitle = $('title').text()
                 const fullText = sliceTitle(documentTitle)
+                console.log(fullText)
 
                 fullTexts.push({
                     siteUrl: html.siteUrl,
@@ -94,22 +96,26 @@ const getTweets = async () => {
                 })
             })
 
+            // filtering part removed because some api responses have so many @ mentions that there is no text to compare to
+            /*
             // filter texts to see if the actually are correct
             const fullTextsFiltered = fullTexts.filter(el => {
-                const fullTextStart = el.fullText.slice(0,5);
+                const fullTextStart = el.fullText.slice(0,5)
                 const foundInOriginal = tweetUrls.find(tweet => {
-                    return tweet.text.slice(0,5) === fullTextStart
+                    return tweet.text.indexOf(fullTextStart) !== -1
                 })
 
                 return foundInOriginal;
             })
+            console.log(fullTextsFiltered.length)
 
             if (fullTextsFiltered.length < fullTexts.length) {
                 console.log('Some sort of alert should be triggered. Fetched full text doesnt match original')
             }
+            */
 
             // TODO: push full texts to bigquery
-            const bqRows = bigQueryMapper(fullTextsFiltered)
+            const bqRows = bigQueryMapper(fullTexts)
 
             console.log('Inserting ' + bqRows.length + ' records in BigQuery.')
             insertRowsAsStream(bqRows)
@@ -120,4 +126,9 @@ const getTweets = async () => {
         });
 }
 
-getTweets()
+/*
+This is the function that is triggered by Pub/Sub
+*/
+exports.fullTweets = (data) => {
+    return getTweets(data);
+};
