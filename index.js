@@ -74,13 +74,13 @@ const getTweets = async () => {
     console.log('Got ' + tweetUrls.length + ' URLs from BigQuery.')
     console.log(tweetUrls)
 
-    const htmlPromises = []
+    const htmlPromises = [];
     tweetUrls.forEach(tweet => {
         const tweetHtml = fetchData(tweet.tweet_url)
         htmlPromises.push(tweetHtml)
-    })
+    });
 
-    Promise.all(htmlPromises)
+    return Promise.all(htmlPromises)
         .then(htmls => {
             const fullTexts = []
 
