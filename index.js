@@ -13,10 +13,16 @@ console.log('Table: ' + process.env.BQ_TABLE);
 // node -e 'require("./index").fullTweets()'
 
 const fetchData = async (siteUrl) => {
-    const result = await axios.get(siteUrl)
+    //const result = await axios.get(siteUrl)
+    const result = await axios.get(siteUrl, {
+        validateStatus: function(status) {
+            return status === 404 || (status >= 200 && status < 300); // Accept 404
+        }
+    })
     return {
         siteUrl: siteUrl,
-        html: cheerio.load(result.data)
+        html: cheerio.load(result.data),
+        status: result.status
     }
     //return cheerio.load(result.data)
 }
@@ -87,7 +93,7 @@ const getTweets = async () => {
             htmls.forEach(html => {
                 const $ = html.html;
                 const documentTitle = $('title').text()
-                const fullText = sliceTitle(documentTitle)
+                const fullText = html.status === 404 ? '404' : sliceTitle(documentTitle)
                 console.log(fullText)
 
                 fullTexts.push({
@@ -120,9 +126,23 @@ const getTweets = async () => {
             console.log('Inserting ' + bqRows.length + ' records in BigQuery.')
             insertRowsAsStream(bqRows)
         })
-        .catch(err => {
-            console.log('Error in fetching the page.');
-            console.log(err);
+        .catch(error => {
+            if (error.response) {
+                // The request was made and the server responded with a status code
+                // that falls out of the range of 2xx
+                console.log(error.response.data);
+                console.log(error.response.status);
+                console.log(error.response.headers);
+            } else if (error.request) {
+                // The request was made but no response was received
+                // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+                // http.ClientRequest in node.js
+                console.log(error.request);
+            } else {
+                // Something happened in setting up the request that triggered an Error
+                console.log('Error', error.message);
+            }
+            console.log(error.config);
         });
 }
 
