@@ -13,10 +13,9 @@ console.log('Table: ' + process.env.BQ_TABLE);
 // node -e 'require("./index").fullTweets()'
 
 const fetchData = async (siteUrl) => {
-    //const result = await axios.get(siteUrl)
     const result = await axios.get(siteUrl, {
         validateStatus: function(status) {
-            return status === 404 || (status >= 200 && status < 300); // Accept 404
+            return status === 404 || (status >= 200 && status < 300); // Accept 404 (tweets that have been deleted)
         }
     })
     return {
@@ -24,7 +23,6 @@ const fetchData = async (siteUrl) => {
         html: cheerio.load(result.data),
         status: result.status
     }
-    //return cheerio.load(result.data)
 }
 
 const getTweetsToBeFetched = () => {
@@ -32,7 +30,7 @@ const getTweetsToBeFetched = () => {
         maxResults: 1000,
     };
 
-    const bqTable = process.env.TWEETS_TO_FETCH_VIEW;
+    const bqTable = process.env.TWEETS_TO_FETCH_VIEW; // count of tweets to be fetched is determined in the BQ view
 
     const query = "SELECT * FROM " + bqTable;
 
@@ -48,7 +46,7 @@ const sliceTitle = (documentTitle) => {
         return slicedTitle.replace(/…([^…]*)$/, "$1")
     }
 
-    return slicedTitle
+    return slicedTitle;
 }
 
 function insertRowsAsStream(rows) {
@@ -102,25 +100,6 @@ const getTweets = async () => {
                 })
             })
 
-            // filtering part removed because some api responses have so many @ mentions that there is no text to compare to
-            /*
-            // filter texts to see if the actually are correct
-            const fullTextsFiltered = fullTexts.filter(el => {
-                const fullTextStart = el.fullText.slice(0,5)
-                const foundInOriginal = tweetUrls.find(tweet => {
-                    return tweet.text.indexOf(fullTextStart) !== -1
-                })
-
-                return foundInOriginal;
-            })
-            console.log(fullTextsFiltered.length)
-
-            if (fullTextsFiltered.length < fullTexts.length) {
-                console.log('Some sort of alert should be triggered. Fetched full text doesnt match original')
-            }
-            */
-
-            // TODO: push full texts to bigquery
             const bqRows = bigQueryMapper(fullTexts)
 
             console.log('Inserting ' + bqRows.length + ' records in BigQuery.')
