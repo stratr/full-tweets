@@ -101,9 +101,13 @@ const getTweets = async () => {
             })
 
             const bqRows = bigQueryMapper(fullTexts)
-
-            console.log('Inserting ' + bqRows.length + ' records in BigQuery.')
-            insertRowsAsStream(bqRows)
+            if (bqRows.length > 0) {
+                console.log('Inserting ' + bqRows.length + ' records in BigQuery.')
+                insertRowsAsStream(bqRows)
+            } else {
+                console.log('No new tweet texts to insert. Returning.');
+                return;
+            }
         })
         .catch(error => {
             if (error.response) {
